@@ -1,22 +1,31 @@
 """
-Global Autocorrect + Deep Learning Prediction — v9.4
+GluttonousTypr — v9.5
+Global autocorrect + deep-learning prediction for Windows.
+
 Requires: pip install pynput symspellpy transformers torch pystray pillow
           pygetwindow language-tool-python pywin32 onnxruntime
           "optimum[onnxruntime]" peft datasets
 
 Launch:
-  pythonw.exe global_autocorrect.py    silent background
-  pyw global_autocorrect.py            silent (py launcher)
-  python global_autocorrect.py         visible for debugging (auto-hides)
+  pythonw.exe gluttonoustypr.py       silent background
+  pyw gluttonoustypr.py               silent (py launcher)
+  python gluttonoustypr.py            visible for debugging (auto-hides)
 
 Hotkeys:
   Ctrl+Shift+A   toggle autocorrect
   Ctrl+Shift+P   toggle prediction
   Ctrl+Space     accept prediction
-  Ctrl+Alt+Z     undo last correction
+  Shift+~        undo last correction (backtick key + Shift)
   Ctrl+Shift+G   grammar check
   Ctrl+Shift+H   show hotkeys
   Ctrl+Shift+L   LoRA fine-tune
+
+v9.5 changes:
+  - Undo hotkey changed to Shift+~ (no more Alt stickiness)
+  - release_all_modifiers() runs BEFORE backspacing during undo
+  - Project renamed from Global Autocorrect to GluttonousTypr
+  - One-time migration from ~/.autocorrect to ~/.gluttonoustypr
+  - Old "GlobalAutocorrect" scheduled task auto-removed on first launch
 """
 
 # ============================================================
@@ -59,6 +68,7 @@ import logging.handlers
 import os
 import pathlib
 import re
+import shutil
 import signal
 import threading
 import time
@@ -86,10 +96,28 @@ except ImportError:
 # ============================================================
 #  PATHS + LOGGING
 # ============================================================
-APP_DIR = pathlib.Path.home() / ".autocorrect"
+APP_DIR = pathlib.Path.home() / ".gluttonoustypr"
 APP_DIR.mkdir(exist_ok=True)
 
-LOG_FILE               = APP_DIR / "autocorrect.log"
+# One-time migration from the old .autocorrect directory
+_old_dir = pathlib.Path.home() / ".autocorrect"
+if _old_dir.exists() and not (APP_DIR / ".migrated").exists():
+    try:
+        for item in _old_dir.iterdir():
+            dest = APP_DIR / item.name
+            if not dest.exists():
+                try:
+                    if item.is_dir():
+                        shutil.copytree(item, dest)
+                    else:
+                        shutil.copy2(item, dest)
+                except Exception:
+                    pass
+        (APP_DIR / ".migrated").touch()
+    except Exception:
+        pass
+
+LOG_FILE               = APP_DIR / "gluttonoustypr.log"
 PERSONAL_DICT_FILE     = APP_DIR / "personal_dict.json"
 TYPO_CACHE_FILE        = APP_DIR / "common_typos.json"
 WRONG_CORRECTIONS_FILE = APP_DIR / "wrong_corrections.json"
@@ -108,7 +136,7 @@ _handler.setFormatter(logging.Formatter(
     datefmt="%Y-%m-%d %H:%M:%S",
 ))
 
-logger = logging.getLogger("autocorrect")
+logger = logging.getLogger("gluttonoustypr")
 logger.setLevel(logging.DEBUG)
 logger.addHandler(_handler)
 
@@ -118,7 +146,7 @@ if _HAS_CONSOLE:
     logger.addHandler(_console_handler)
 
 logger.info("=" * 50)
-logger.info("Autocorrect v9.4 starting")
+logger.info("GluttonousTypr v9.5 starting")
 logger.info(f"Console mode: {'yes' if _HAS_CONSOLE else 'no (background)'}")
 
 
@@ -137,7 +165,7 @@ def hide_console_window():
 
 
 # ============================================================
-#  WINDOWS API
+#  WINDOWS API (password field detection)
 # ============================================================
 user32 = ctypes.windll.user32
 
@@ -302,7 +330,7 @@ FALLBACK_TYPOS = {
     "aquit": "acquit", "acrage": "acreage", "acerage": "acreage",
     "adress": "address", "adultary": "adultery", "adviseable": "advisable",
     "agression": "aggression", "agressive": "aggressive",
-    "allmost": "almost", "alot": "a lot", "amatuer": "amateur",
+    "allmost": "almost", "amatuer": "amateur",
     "amature": "amateur", "anually": "annually", "annualy": "annually",
     "apparant": "apparent", "aparent": "apparent", "artic": "arctic",
     "arguement": "argument", "calender": "calendar", "camoflage": "camouflage",
@@ -385,10 +413,9 @@ CONFUSED_WORDS = {
 
 # ============================================================
 #  LOOKUP TABLE: SLANG_WHITELIST
-#  Never corrected, even if SymSpell flags them.
 # ============================================================
 SLANG_WHITELIST = {
-    # --- Greetings / address ---
+    # Greetings / address
     "yo", "yoyo", "sup", "wassup", "wazzup", "whassup", "whatup", "waddup",
     "hey", "heya", "heyy", "heyyy", "hii", "hiii", "yooo", "yoooo",
     "homie", "homey", "homies", "bro", "broski", "bruh", "bruhh", "brah",
@@ -399,7 +426,7 @@ SLANG_WHITELIST = {
     "shordy", "shawtys", "shorties", "mami", "papi", "mijo", "mija",
     "homes", "homeslice", "homiette", "peeps", "peepz", "folks", "folkz",
 
-    # --- Reactions / interjections ---
+    # Reactions / interjections
     "word", "bet", "facts", "fax", "nocap", "ong", "fr", "frfr", "ongg",
     "sheesh", "sheeeesh", "damn", "dang", "darn", "dag", "dayum", "dayumm",
     "yikes", "oof", "oops", "welp", "whelp", "meh", "eh", "ehh",
@@ -415,7 +442,7 @@ SLANG_WHITELIST = {
     "dangit", "goshdarnit", "gosh", "jeez", "jeeze", "geez",
     "jesus", "lordy", "lord", "lawd", "lawdy",
 
-    # --- Approval / praise ---
+    # Approval / praise
     "dope", "fire", "lit", "litt", "litty", "bussin",
     "slaps", "slappin", "bangs", "bangin", "crackin",
     "tight", "sick", "wicked", "ill", "killer", "killin", "kilt",
@@ -424,7 +451,7 @@ SLANG_WHITELIST = {
     "snatched", "slay", "slayy", "slayed", "slaying",
     "periodt", "period", "yass", "yasss", "queen", "werk",
 
-    # --- Disapproval / insults ---
+    # Disapproval / insults
     "sus", "sussy", "cringe", "cringey", "cringy",
     "basic", "thirsty", "thot", "thottie", "hoe", "hoes",
     "clown", "clownin", "buffoon", "bozo", "dingus", "dingbat", "dodo",
@@ -435,7 +462,7 @@ SLANG_WHITELIST = {
     "incel", "incels", "karen", "karens", "chad", "chads",
     "neckbeard", "neckbeards", "noob", "newb", "newbie", "n00b",
 
-    # --- People / relationships ---
+    # People / relationships
     "booboo", "babygirl", "babyboy", "wifey", "hubby", "main", "mainthing",
     "sidepiece", "sidechick", "hookup", "hookups",
     "roast", "roasted", "roasting", "dissing", "dis", "disses",
@@ -446,9 +473,9 @@ SLANG_WHITELIST = {
     "rideordie", "bestie", "besties", "bff", "bffs",
     "roomie", "roomies", "broham", "brohams",
 
-    # --- Actions / verbs ---
+    # Actions / verbs
     "chill", "chillax", "chillin", "chillen", "vibin", "vibing",
-    "vibe", "vibes", "vibey", "goodvibes", "badb vibes".replace(" ", ""),
+    "vibe", "vibes", "vibey", "goodvibes",
     "hang", "hangin", "hangout", "chilling", "kickin", "kickinit",
     "bounce", "bounced", "dip", "dippin", "dipped", "peacing", "ghosting",
     "ghosted", "ghostin", "flex", "flexin", "flexing", "flexes", "flexed",
@@ -462,20 +489,20 @@ SLANG_WHITELIST = {
     "smashing", "smash", "smashin", "piping", "hittin", "hit",
     "throwin", "throwing", "catching", "caught", "pulling", "pullup",
 
-    # --- Money ---
+    # Money
     "cheddar", "paper", "papers", "bands", "bandz", "racks", "rackz",
     "guap", "gwap", "moolah", "moola", "scratch", "bread", "dough",
     "coin", "coins", "cashflow", "bigmoney", "bag", "bags",
     "broke", "brokeboi", "brokeboy", "rich", "wealthy", "moneyed",
 
-    # --- Weed culture ---
+    # Weed culture
     "dank", "danks", "gas", "za", "zaza", "pack", "packs",
     "loud", "loudpack", "tree", "trees", "herb", "herbs", "bud", "buds",
     "green", "greens", "exotic", "exotics",
     "stoned", "blazed", "faded", "fried", "toasted",
     "roasted", "baked", "cooked", "gassed", "zoned", "zonedout",
 
-    # --- Music / culture ---
+    # Music / culture
     "trap", "trapping", "drill", "drilling", "drip", "dripping", "drippy",
     "sauce", "saucy", "beat", "beats", "flow",
     "bars", "punchline", "punchlines", "freestyle", "cypher", "cyphers",
@@ -483,7 +510,7 @@ SLANG_WHITELIST = {
     "disstrack", "clapback", "clapbacks",
     "spitting", "spit", "spittin", "wildnout",
 
-    # --- Internet / gaming ---
+    # Internet / gaming
     "pog", "pogs", "poggers", "pogchamp", "omegalul", "monkas", "pepehands",
     "ez", "ezz", "ezclap", "gg", "ggs", "ggwp", "glhf", "op", "nerf",
     "buff", "meta", "pwnd", "pwned", "rekt",
@@ -495,7 +522,7 @@ SLANG_WHITELIST = {
     "derp", "derpy", "derped", "derping", "noms", "nomnom",
     "uwu", "owo", "uvu", "rawr", "nya", "nyaa", "meowdy",
 
-    # --- Regional US ---
+    # Regional US
     "yall", "yalls", "yins", "yinz", "youse", "yous",
     "aint", "gonna", "wanna", "gotta", "finna",
     "tryna", "shoulda", "coulda", "woulda", "musta", "hafta",
@@ -503,12 +530,12 @@ SLANG_WHITELIST = {
     "cantcha", "wontcha", "fixin", "fixing", "yonder",
     "howdy", "howdies",
 
-    # --- Filler / hedging ---
+    # Filler / hedging
     "yanno", "yaknow", "yakno", "yuh", "yea", "yeah", "yep", "yup", "yupp",
     "yah", "naw", "nah", "blah", "anyways", "anywho", "anywayz",
     "whatever", "whatevs", "whatev",
 
-    # --- AAVE specific ---
+    # AAVE specific
     "finsta", "chile", "chilee", "chyle", "gworl", "gworls",
     "sisses", "brothas", "sistas", "aight", "aiight", "igh", "ight",
     "dassit", "dasit", "datsit", "dass", "dat", "dese", "doe",
@@ -517,16 +544,16 @@ SLANG_WHITELIST = {
     "hun", "hunn", "hunnies", "honeyy", "shug", "sugar",
     "lawdd", "lordt", "lordhamercy", "gawd", "gawwd", "gawdd",
     "gawt", "gawta", "gawtcha", "gon", "gone", "gonbe", "gonn",
-    "ya", "yaa", "yall", "yalls",
+    "ya", "yaa",
 
-    # --- Intensifiers / modifiers ---
+    # Intensifiers / modifiers
     "hella", "helluva", "hecka",
     "lowkey", "highkey", "deadass", "realtalk",
     "tbh", "ngl", "imo", "imho", "fwiw", "btw", "brb", "afk",
     "irl", "tmi", "ttyl", "ttys", "hmu", "hitmeup",
     "dm", "dms", "dmed", "dming", "sliding", "slid", "slide",
 
-    # --- Modern / TikTok ---
+    # Modern / TikTok
     "rizz", "rizzed", "rizzing", "rizzler",
     "gyatt", "gyat", "skibidi", "skibiditoilet",
     "sigma", "sigmas", "sigmagrindset", "sigmamale",
@@ -549,7 +576,6 @@ SLANG_WHITELIST = {
 
 # ============================================================
 #  LOOKUP TABLE: SLANG_REPLACEMENTS
-#  Misspelled slang -> correct slang form.
 # ============================================================
 SLANG_REPLACEMENTS = {
     "yoe": "yo", "yoo": "yo",
@@ -559,10 +585,4 @@ SLANG_REPLACEMENTS = {
     "wasup": "wassup", "watzup": "wassup", "watsup": "wassup",
     "whassup": "wassup", "wadup": "waddup",
     "waddap": "waddup", "wazzup": "wassup",
-    "cuzz": "cuz", "cuzzo": "cuz", "cuzo": "cuz",
-    "dawgg": "dawg", "dawwg": "dawg", "dawgz": "dawgs",
-    "damm": "damn", "dyam": "dayum",
-    "dangg": "dang", "danggg": "dang",
-    "sheeesh": "sheesh", "sheeeshh": "sheesh",
-    "yikess": "yikes", "yikesss": "yikes",
-    "welpp": "welp", "mehh": "meh", "ughh": "ugh", "ughhh":
+    "cuzz":

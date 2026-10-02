@@ -1,8 +1,8 @@
 @echo off
 REM ============================================================
-REM  GluttonousTypr v9.6 — Windows build script
-REM  Input :  GluttonousTypr9.6.py
-REM  Output:  dist\GluttonousTypr.exe
+REM  EnviousTypr v9.7 — Windows build script
+REM  Input :  EnviousTypr9.7.py
+REM  Output:  dist\EnviousTypr.exe
 REM
 REM  Requirements:
 REM    - Python 3.10+
@@ -13,9 +13,9 @@ REM ============================================================
 setlocal EnableDelayedExpansion
 
 REM ---------- Configuration ----------
-set APP_NAME=GluttonousTypr
-set SCRIPT_NAME=GluttonousTypr9.6.py
-set ICON_FILE=gluttonoustypr.ico
+set APP_NAME=EnviousTypr
+set SCRIPT_NAME=EnviousTypr9.7.py
+set ICON_FILE=envioustypr.ico
 set SCRIPT_DIR=%~dp0
 set SCRIPT_PATH=%SCRIPT_DIR%%SCRIPT_NAME%
 

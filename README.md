@@ -1,5 +1,12 @@
 # GluttonousTypr
-A script that corrects spelling on PC
+A script that globally corrects spelling on PC
+
+Features :
+Spellcheck 
+Grammar check hotkey
+Predictive text
+Tray icon
+Startup at startup
 
 Installation :
 1. Download ALL files

@@ -1,4 +1,4 @@
-# GluttonousTypr
+# EnviousTypr
 A script that globally corrects spelling on PC
 
 Features :

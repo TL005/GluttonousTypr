@@ -1,5 +1,5 @@
 """
-GluttonousTypr — v9.7
+EnviousTypr — v9.7
 Global autocorrect + deep-learning prediction for Windows.
 Multi-language support: English, French (+ any language with a SyMSpell
 dictionary; extra dictionaries can be dropped into ~/.gluttonoustypr/dicts/).
@@ -147,7 +147,7 @@ if _HAS_CONSOLE:
     logger.addHandler(_console_handler)
 
 logger.info("=" * 50)
-logger.info("GluttonousTypr v9.6 starting")
+logger.info("EnviousTypr v9.7 starting")
 logger.info(f"Console mode: {'yes' if _HAS_CONSOLE else 'no (background)'}")
 
 
@@ -637,7 +637,7 @@ TRANSLATIONS = {
         "show_hotkeys": "Show hotkeys",
         "open_log": "Open log",
         "quit": "Quit",
-        "hotkeys_title": "GluttonousTypr Hotkeys",
+        "hotkeys_title": "EnviousTypr Hotkeys",
         "hotkeys_body": (
             "Ctrl+Shift+A  toggle autocorrect\n"
             "Ctrl+Shift+P  toggle prediction\n"
@@ -663,7 +663,7 @@ TRANSLATIONS = {
         "show_hotkeys": "Afficher les raccourcis",
         "open_log": "Ouvrir le journal",
         "quit": "Quitter",
-        "hotkeys_title": "Raccourcis GluttonousTypr",
+        "hotkeys_title": "Raccourcis EnviousTypr",
         "hotkeys_body": (
             "Ctrl+Maj+A    activer/désactiver la correction automatique\n"
             "Ctrl+Maj+P    activer/désactiver la prédiction\n"
@@ -689,7 +689,7 @@ TRANSLATIONS = {
         "show_hotkeys": "Tastenkürzel anzeigen",
         "open_log": "Protokoll öffnen",
         "quit": "Beenden",
-        "hotkeys_title": "GluttonousTypr-Tastenkürzel",
+        "hotkeys_title": "EnviousTypr-Tastenkürzel",
         "hotkeys_body": (
             "Strg+Umsch+A  Autokorrektur ein/aus\n"
             "Strg+Umsch+P  Vorhersage ein/aus\n"
@@ -715,7 +715,7 @@ TRANSLATIONS = {
         "show_hotkeys": "Mostrar atajos",
         "open_log": "Abrir registro",
         "quit": "Salir",
-        "hotkeys_title": "Atajos de GluttonousTypr",
+        "hotkeys_title": "Atajos de EnviousTypr",
         "hotkeys_body": (
             "Ctrl+Mayús+A  activar/desactivar autocorrección\n"
             "Ctrl+Mayús+P  activar/desactivar predicción\n"
@@ -1789,7 +1789,7 @@ CYCLE_LANGUAGE     = "<ctrl>+<shift>+t"
 # so we listen for the resulting character '~' directly.
 UNDO_KEY_CHAR = "~"
 
-TASK_NAME = "GluttonousTypr"
+TASK_NAME = "EnviousTypr"
 
 MIN_WORD_LENGTH = 3
 MAX_EDIT_DISTANCE = 2
@@ -2542,7 +2542,7 @@ def enable_start_at_logon():
         s.Connect()
         root = s.GetFolder("\\")
         td = s.NewTask(0)
-        td.RegistrationInfo.Description = "GluttonousTypr"
+        td.RegistrationInfo.Description = "EnviousTypr"
         td.Principal.RunLevel = 0
         td.Principal.LogonType = 3
         td.Settings.Enabled = True
@@ -2683,7 +2683,7 @@ def _tray_thread():
     color = (60, 180, 75) if (enabled_autocorrect and enabled_prediction) else (200, 60, 60)
     tray_icon = pystray.Icon(
         "gluttonoustypr", _make_icon_image(color),
-        "GluttonousTypr v9.7", menu=_tray_menu(),
+        "EnviousTypr v9.7", menu=_tray_menu(),
     )
     tray_icon.run()
 
@@ -2746,7 +2746,7 @@ def main():
     hide_console_window()
 
     logger.info("=" * 60)
-    logger.info("  GluttonousTypr v9.7")
+    logger.info("  EnviousTypr v9.7")
     logger.info("=" * 60)
     logger.info("  Ctrl+Shift+A  autocorrect")
     logger.info("  Ctrl+Shift+P  prediction")

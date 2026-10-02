@@ -517,11 +517,43 @@ def _load_language_dictionary(lang):
     logger.info(f"[{lang}] Dictionary: {ss.word_count:,} words")
 
 
+def _lazy_load_language(lang):
+    """Background thread: download + load one language's dictionary so the
+    tray menu can list it immediately without delaying startup."""
+    try:
+        _load_language_dictionary(lang)
+        with _lang_lock:
+            if lang not in supported_languages:
+                supported_languages.append(lang)
+        logger.info(f"[{lang}] Lazy dictionary load complete "
+                    f"({LANGUAGE_CONFIG[lang]['label']}).")
+        _refresh_tray()
+    except Exception as e:
+        logger.warning(f"Language '{lang}' unavailable: {e}")
+
+
+def _start_lazy_language_loads():
+    pending = [l for l in LANGUAGE_CONFIG if l not in supported_languages]
+    for lang in pending:
+        threading.Thread(target=_lazy_load_language, args=(lang,),
+                         daemon=True, name=f"lang-{lang}").start()
+
+
 def _init_languages():
-    """Load every language whose dictionary is available (never crash)."""
+    """Load every language whose dictionary is already available locally
+    (bundled or cached); never crash. Missing dictionaries are fetched
+    later by `_start_lazy_language_loads()`."""
     global supported_languages
     loaded = []
     for lang in LANGUAGE_CONFIG:
+        cfg = LANGUAGE_CONFIG[lang]
+        cached = cfg["builtin_dict"] is None and not (
+            DICTS_DIR / f"{lang}_frequency.txt").exists() and not (
+            DICTS_DIR / f"{lang}.txt").exists() and (
+            cfg.get("dict_assets") is None or
+            not (DICTS_DIR / cfg["dict_assets"][0]).exists())
+        if cached:
+            continue  # nothing local yet -> lazy-load after startup
         try:
             _load_language_dictionary(lang)
             loaded.append(lang)
@@ -743,16 +775,22 @@ def save_config():
 
 def set_language_mode(mode):
     global _language_mode
-    if mode != "auto" and mode not in supported_languages:
+    if mode != "auto" and mode not in LANGUAGE_CONFIG:
         return False
     _language_mode = mode
+    if mode != "auto" and mode not in supported_languages:
+        # Dictionary still downloading in the background: kick off an
+        # immediate (re)load so correction works as soon as it lands.
+        threading.Thread(target=_lazy_load_language, args=(mode,),
+                         daemon=True, name=f"lang-{mode}").start()
     save_config()
     return True
 
 
 def cycle_language():
-    """Ctrl+Shift+T: auto -> first lang -> second lang -> ... -> auto."""
-    options = ["auto"] + supported_languages
+    """Ctrl+Shift+T: auto -> every configured language in turn -> auto.
+    Matches the order shown in the tray Language submenu."""
+    options = ["auto"] + list(LANGUAGE_CONFIG.keys())
     try:
         idx = options.index(_language_mode)
     except ValueError:
@@ -2561,18 +2599,24 @@ def _make_icon_image(color):
 
 
 def _language_submenu():
-    """Radio list: Auto + every loaded language (Ctrl+Shift+T cycles them)."""
+    """Radio list: Auto + EVERY configured language (Ctrl+Shift+T cycles
+    them). Languages whose dictionary is still downloading in the background
+    are shown greyed-out as '(loading…)' and become selectable once ready."""
     items = [pystray.MenuItem(
         "Auto (keyboard layout)",
         lambda i, it: _pick_language("auto"),
         checked=lambda it: get_language_mode() == "auto",
         radio=True,
     )]
-    for code in supported_languages:
+    for code, cfg in LANGUAGE_CONFIG.items():
+        label = cfg["label"]
+        if code not in supported_languages:
+            label += "  (loading\u2026)"
         items.append(pystray.MenuItem(
-            LANGUAGE_CONFIG[code]["label"],
+            label,
             (lambda c: lambda i, it: _pick_language(c))(code),
             checked=lambda it, c=code: get_language_mode() == c,
+            enabled=(code in supported_languages),
             radio=True,
         ))
     return pystray.Menu(*items)
@@ -2734,7 +2778,8 @@ def main():
 
     load_config()
     load_personal_data()
-    _start_model_loading()
+    _start_lazy_language_loads()   # fr/de/es download in background; tray
+    _start_model_loading()         # shows them as "(loading…)" meanwhile
     threading.Thread(target=_layout_watcher, daemon=True).start()
     threading.Thread(target=fetch_common_typos, daemon=True).start()
     threading.Thread(target=scan_public_files, daemon=True).start()
